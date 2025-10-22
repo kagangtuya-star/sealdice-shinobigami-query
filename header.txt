@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         忍神速查
+// @name         忍神速查数据库
 // @author       星尘
 // @version      1.0.0
-// @description
-// @timestamp    1674477074
-// 2023/1/23
+// @description  查询指令使用方式：查<类别> [关键词] [#标签] [&分类]（别名 .q） 速查 [类别] <关键词>（类别可省略） 示例：查忍法 影分身 / 速查 忍法 影分身' 当前装载类别 谜团 外道忍法 敌人 奥义开发 妖魔武器 人格假面 惟神 仪式忍法 背景 忍法 战场
+// @timestamp    1761143878
+// 2025/10/22
 // @license      MIT
 // @homepageURL  https://github.com/kagangtuya-star/sealdice-shinobigami-query
 // ==/UserScript==

@@ -73,10 +73,11 @@ export const formatSearchResult = (result: SearchResult): FormattedOutput => {
     return { lines, mode: 'detail', topHitIds: [getFieldValue(item, '序号')].filter(Boolean) };
   }
 
-  const displayCount = Math.min(hits.length, MAX_LIST_DISPLAY);
-  const header = result.filteredTotal > displayCount
-    ? `查询到 ${result.filteredTotal} 条结果，显示前 ${displayCount} 条：`
-    : `查询到 ${hits.length} 条结果：`;
+  const totalHits = hits.length;
+  const displayCount = Math.min(totalHits, MAX_LIST_DISPLAY);
+  const header = totalHits > displayCount
+    ? `查询到 ${totalHits} 条结果，显示前 ${displayCount} 条：`
+    : `查询到 ${totalHits} 条结果：`;
 
   const lines = [header];
   for (let index = 0; index < displayCount; index += 1) {

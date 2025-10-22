@@ -93,10 +93,11 @@ const runCategorySearch = (
   ctx: seal.MsgContext,
   msg: seal.Message,
   category: CategoryConfig,
-  queryText: string
+  queryText: string,
+  options?: { mode?: 'default' | 'full' }
 ): void => {
   const query = parseQuery(queryText, category);
-  const result = searchInCategory(category, query);
+  const result = searchInCategory(category, query, options);
   replySearchResult(ctx, msg, result);
 };
 
@@ -104,9 +105,10 @@ const sendGeneralHelp = (ctx: seal.MsgContext, msg: seal.Message): void => {
   const lines = [
     '查询指令使用方式：',
     '查<类别> [关键词] [#标签] [&分类]（别名 .q）',
+    '.全查 <类别> <关键词>（搜索该类别全部字段）',
     '速查 [类别] <关键词>（类别可省略）',
-    '当前装载类别 谜团 外道忍法 敌人 奥义开发 妖魔武器 人格假面 惟神 仪式忍法 背景 忍法 战场',
-    '示例：查忍法 影分身 / 速查 忍法 影分身'
+    '当前装载类别 忍法 背景 谜团 人格假面 惟神 奥义开发 外道忍法 妖魔武器 仪式忍法 战场 敌人 变调',
+    '示例：.查 忍法 影分身 / .全查 忍法 火达摩 / 速查 忍法 影分身'
   ];
   replyText(ctx, msg, lines.join('\n'));
 };
@@ -153,7 +155,31 @@ const handleAdvancedQuery = (
     sendGeneralHelp(ctx, msg);
     return buildCommandResult(true);
   }
-  runCategorySearch(ctx, msg, category, queryText);
+  runCategorySearch(ctx, msg, category, queryText, { mode: 'default' });
+  return buildCommandResult(true);
+};
+
+const handleFullFieldQuery = (
+  ctx: seal.MsgContext,
+  msg: seal.Message,
+  args: string[]
+): seal.CmdExecuteResult => {
+  if (!args.length) {
+    replyText(ctx, msg, `请提供查询类别。例如：.全查 忍法 火达摩。可用类别：${CATEGORY_NAMES}`);
+    return buildCommandResult(true);
+  }
+  const [categoryToken, ...rest] = args;
+  const category = resolveCategory(categoryToken);
+  if (!category) {
+    replyText(ctx, msg, `未识别的类别“${categoryToken}”。可用类别：${CATEGORY_NAMES}`);
+    return buildCommandResult(true);
+  }
+  const queryText = rest.join(' ').trim();
+  if (!queryText) {
+    sendGeneralHelp(ctx, msg);
+    return buildCommandResult(true);
+  }
+  runCategorySearch(ctx, msg, category, queryText, { mode: 'full' });
   return buildCommandResult(true);
 };
 
@@ -161,23 +187,33 @@ const registerAdvancedCommands = (ext: seal.ExtInfo): void => {
   const helpText = `.查 <类别> [关键词] [#标签] [&分类]\n`.concat(
     '示例：\n',
     '.查 忍法 影分身\n',
-    '.查 忍法 伤害 #鞍马神流 &花费:<=2',
-    '当前装载类别 谜团 外道忍法 敌人 奥义开发 妖魔武器 人格假面 惟神 仪式忍法 背景 忍法 战场'
+    '.查 忍法 伤害 #鞍马神流 &花费:<=2'
   );
 
   const cmd = seal.ext.newCmdItemInfo();
   cmd.name = '查';
   cmd.help = helpText;
-  cmd.solve = (ctx, msg, cmdArgs) =>
-    handleAdvancedQuery(ctx, msg, cmdArgs.args);
-  ext.cmdMap['查'] = cmd; // 直接使用字符串 '查' 作为键
+  cmd.solve = (ctx, msg, cmdArgs) => handleAdvancedQuery(ctx, msg, cmdArgs.args);
+  ext.cmdMap[cmd.name] = cmd;
 
   const alias = seal.ext.newCmdItemInfo();
   alias.name = 'q';
   alias.help = helpText;
-  alias.solve = (ctx, msg, cmdArgs) =>
-    handleAdvancedQuery(ctx, msg, cmdArgs.args);
-  ext.cmdMap['q'] = alias; // 直接使用字符串 'q' 作为键
+  alias.solve = (ctx, msg, cmdArgs) => handleAdvancedQuery(ctx, msg, cmdArgs.args);
+  ext.cmdMap[alias.name] = alias;
+
+  const fullHelp = '.全查 <类别> <关键词>\n示例：\n.全查 忍法 火达摩';
+  const fullCmd = seal.ext.newCmdItemInfo();
+  fullCmd.name = '全查';
+  fullCmd.help = fullHelp;
+  fullCmd.solve = (ctx, msg, cmdArgs) => handleFullFieldQuery(ctx, msg, cmdArgs.args);
+  ext.cmdMap[fullCmd.name] = fullCmd;
+
+  const fullAlias = seal.ext.newCmdItemInfo();
+  fullAlias.name = 'qall';
+  fullAlias.help = fullHelp;
+  fullAlias.solve = (ctx, msg, cmdArgs) => handleFullFieldQuery(ctx, msg, cmdArgs.args);
+  ext.cmdMap[fullAlias.name] = fullAlias;
 };
 
 const registerShortcutCommands = (ext: seal.ExtInfo): void => {

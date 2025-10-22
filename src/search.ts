@@ -1,6 +1,24 @@
 import { CategoryConfig, ParsedQuery, SearchHit, SearchResult, SuggestionItem } from './types';
 import { isPureNumber, normalizeText, tryParseNumber, uniqueBy } from './utils';
 
+const fullFieldCache = new WeakMap<CategoryConfig, string[]>();
+
+const getAllFieldNames = (category: CategoryConfig): string[] => {
+  let fields = fullFieldCache.get(category);
+  if (fields) return fields;
+  const set = new Set<string>();
+  category.data.forEach((item) => {
+    Object.keys(item).forEach((key) => {
+      if (!key.startsWith('__')) {
+        set.add(key);
+      }
+    });
+  });
+  fields = Array.from(set);
+  fullFieldCache.set(category, fields);
+  return fields;
+};
+
 const getFieldValue = (item: Record<string, string>, field: string): string => {
   const value = item[field];
   if (value === undefined || value === null) {
@@ -109,7 +127,8 @@ const applyFilters = (
 const collectMatches = (
   category: CategoryConfig,
   filteredData: Record<string, string>[],
-  query: ParsedQuery
+  query: ParsedQuery,
+  searchFieldNames: string[]
 ): SearchHit[] => {
   const hits: SearchHit[] = [];
   const seen = new Set<string>();
@@ -140,15 +159,15 @@ const collectMatches = (
     }
   });
 
+  const effectiveSearchFields = searchFieldNames.length ? searchFieldNames : [category.primaryField];
+
   filteredData.forEach((item) => {
-    const primaryValue = normalizeText(getFieldValue(item, category.primaryField));
     const alreadyCaptured = hits.some((hit) => hit.item === item);
     if (alreadyCaptured) return;
 
-    const fields = category.searchFields.map((field) => normalizeText(getFieldValue(item, field)));
+    const fields = effectiveSearchFields.map((field) => normalizeText(getFieldValue(item, field)));
     if (!normalizedKeywords.length) {
-      const fieldPriority = Math.min(...fields.map((_, index) => index));
-      register(item, 'fieldContains', fieldPriority === Infinity ? Number.MAX_SAFE_INTEGER : fieldPriority, 0);
+      register(item, 'fieldContains', 0, 0);
       return;
     }
 
@@ -167,7 +186,12 @@ const collectMatches = (
     });
 
     if (allMatched) {
-      register(item, 'fieldContains', minimalFieldIndex === Number.MAX_SAFE_INTEGER ? Number.MAX_SAFE_INTEGER : minimalFieldIndex, matchCount);
+      register(
+        item,
+        'fieldContains',
+        minimalFieldIndex === Number.MAX_SAFE_INTEGER ? Number.MAX_SAFE_INTEGER : minimalFieldIndex,
+        matchCount
+      );
     }
   });
 
@@ -226,13 +250,15 @@ const levenshteinDistance = (source: string, target: string): number => {
 const buildSuggestions = (
   category: CategoryConfig,
   reference: string,
-  limit: number
+  limit: number,
+  searchFieldNames: string[]
 ): SuggestionItem[] => {
   const normalizedReference = normalizeText(reference).replace(/\s+/g, '');
   if (!normalizedReference) return [];
 
   const candidates: SuggestionItem[] = [];
-  category.searchFields.forEach((field) => {
+  const fields = searchFieldNames.length ? searchFieldNames : category.searchFields;
+  fields.forEach((field) => {
     category.data.forEach((item) => {
       const original = getFieldValue(item, field);
       const value = normalizeText(original).replace(/\s+/g, '');
@@ -247,7 +273,13 @@ const buildSuggestions = (
     .slice(0, limit);
 };
 
-export const searchInCategory = (category: CategoryConfig, query: ParsedQuery): SearchResult => {
+export const searchInCategory = (
+  category: CategoryConfig,
+  query: ParsedQuery,
+  options?: { mode?: 'default' | 'full' }
+): SearchResult => {
+  const mode = options?.mode ?? 'default';
+
   if (query.rawKeywordText && isPureNumber(query.rawKeywordText)) {
     const targetId = query.rawKeywordText.trim();
     const found = category.data.find((item) => getFieldValue(item, '序号') === targetId);
@@ -270,9 +302,10 @@ export const searchInCategory = (category: CategoryConfig, query: ParsedQuery): 
   }
 
   const filteredData = applyFilters(category, category.data, query);
-  const hits = collectMatches(category, filteredData, query);
+  const searchFieldNames = mode === 'full' ? getAllFieldNames(category) : category.searchFields;
+  const hits = collectMatches(category, filteredData, query, searchFieldNames);
   const referenceText = query.rawKeywordText || query.keywords.join(' ');
-  const suggestions = hits.length === 0 ? buildSuggestions(category, referenceText, 5) : [];
+  const suggestions = hits.length === 0 ? buildSuggestions(category, referenceText, 5, searchFieldNames) : [];
 
   return {
     category,

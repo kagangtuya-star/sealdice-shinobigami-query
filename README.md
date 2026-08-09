@@ -125,3 +125,38 @@
    - `.查`、`.查XX`、`速查`、`查XX` 指令的空白处理与帮助提示。
    - 多条结果时的提示语是否简洁。
    - 新增数据类别（谜团、外道忍法、敌人等）的查询准确性。
+
+## Sealchat 术语表转换器
+
+`database/convert-keywords.cjs` 用于将插件内各类别的 JavaScript 数据表转换为 Sealchat 术语表 JSON。转换器会读取 `database/` 下的 12 个数据表，提取主关键词与别名，将详情字段合并为带字段标记的 `description`，并生成稳定的记录 ID 与连续的 `sortOrder`。
+
+### 使用方法
+
+在仓库根目录执行：
+
+```bash
+node database/convert-keywords.cjs --cwd database \
+  --template 术语测试-keywords.json \
+  --out 完整术语库-keywords.json
+```
+
+若当前目录已经是 `database/`，可直接执行：
+
+```bash
+node convert-keywords.cjs
+```
+
+默认模板为 `术语测试-keywords.json`，默认输出为 `完整术语库-keywords.json`。命令行参数：
+
+- `--cwd <目录>`：数据表与模板的工作目录。
+- `--template <文件>`：Sealchat 术语表模板 JSON；模板第一条记录的元数据会作为默认值继承。
+- `--out <文件>`：输出 JSON 文件路径；父目录不存在时会自动创建。
+- `--help` / `-h`：显示用法。
+
+输出记录包含 `keyword`、`category`、`aliases`、`description`、`sortOrder` 等字段。主字段中的换行内容会拆分为主关键词和别名；空关键词、只有单一非空详情字段的行会被过滤。更新 `database/*.js` 后重新运行转换器即可生成最新术语表。
+
+转换器自带 Node 测试，可在仓库根目录执行：
+
+```bash
+node --test database/tests/keyword-converter.test.cjs
+```
